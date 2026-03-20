@@ -1,0 +1,27 @@
+# Data and large files
+data/
+# Drafts and temporary work
+draft/
+# Jupyter notebooks
+notebooks/
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.env
+.venv
+# Jupyter artifacts
+.ipynb_checkpoints
+# IDE artifacts
+.vscode/
+.idea/
+# OS specific
+Thumbs.db
+Desktop.ini
