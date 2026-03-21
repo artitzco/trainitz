@@ -9,8 +9,8 @@ class TrainingPlanGenerator:
     """
 
     _UNIT_CONFIG = {
-        'time': {'class': Time, 'kwarg': 'minutes'},
-        'distance': {'class': Distance, 'kwarg': 'kilometers'},
+        'time': {'class': Time, 'unit': 'minutes'},
+        'distance': {'class': Distance, 'unit': 'kilometers'},
     }
 
     def __init__(self, data_list, round_to_half=True, unit='time'):
@@ -23,7 +23,7 @@ class TrainingPlanGenerator:
         self.unit = unit
         self.plan = []
 
-        # Variables de Estdo (State) para cálculos entre semanas
+        # Variables de Estado (State) para cálculos entre semanas
         self.last_load_vol = None
         self.prev_vol = None
 
@@ -242,7 +242,7 @@ class TrainingPlanGenerator:
     def _to_metric(self, value):
         """Convierte un valor numérico a la instancia de métrica correspondiente."""
         cfg = self._UNIT_CONFIG[self.unit]
-        return cfg['class'](**{cfg['kwarg']: value})
+        return cfg['class'](value, cfg['unit'])
 
     def _format_row(self, current_week, active_params, status, current_vol, current_long_run, sp_vols):
         """Formatea todas las variables procesadas a un dict (que será una fila del DataFrame)."""
