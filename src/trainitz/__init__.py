@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import datetime, timedelta
+from trainitz.metrics import Time, Distance
 
 
 class TrainingPlanGenerator:
@@ -7,9 +8,19 @@ class TrainingPlanGenerator:
     Generador de planes de entrenamiento semanales basados en parámetros variables.
     """
 
-    def __init__(self, data_list, round_to_half=True):
+    _UNIT_CONFIG = {
+        'time': {'class': Time, 'kwarg': 'minutes'},
+        'distance': {'class': Distance, 'kwarg': 'kilometers'},
+    }
+
+    def __init__(self, data_list, round_to_half=True, unit='time'):
+        if unit not in self._UNIT_CONFIG:
+            raise ValueError(
+                f"unit must be one of {list(self._UNIT_CONFIG)}, got {unit!r}")
+
         self.data_list = data_list or []
         self.round_to_half = round_to_half
+        self.unit = unit
         self.plan = []
 
         # Variables de Estdo (State) para cálculos entre semanas
@@ -228,14 +239,20 @@ class TrainingPlanGenerator:
         else:
             return [round(v, 2) for v in sp_vols]
 
+    def _to_metric(self, value):
+        """Convierte un valor numérico a la instancia de métrica correspondiente."""
+        cfg = self._UNIT_CONFIG[self.unit]
+        return cfg['class'](**{cfg['kwarg']: value})
+
     def _format_row(self, current_week, active_params, status, current_vol, current_long_run, sp_vols):
         """Formatea todas las variables procesadas a un dict (que será una fila del DataFrame)."""
         iso_year, iso_week, _ = current_week.isocalendar()
 
         lr_val = None
         if current_long_run is not None:
-            lr_val = round(current_long_run * 2) / \
+            lr_rounded = round(current_long_run * 2) / \
                 2 if self.round_to_half else round(current_long_run, 2)
+            lr_val = self._to_metric(lr_rounded)
 
         row = {
             'ISO_Week': f"{str(iso_year)[-2:]}-{iso_week:02d}",
@@ -244,12 +261,12 @@ class TrainingPlanGenerator:
             'Phase': status,
             'Increment': active_params.get('increment', 0),
             'Deload': active_params.get('deload', 1.0),
-            'Volume': current_vol,
+            'Volume': self._to_metric(current_vol),
             'LR': lr_val
         }
 
         for idx, sp_val in enumerate(sp_vols, 1):
-            row[f'Sp_{idx}'] = sp_val
+            row[f'Sp_{idx}'] = self._to_metric(sp_val)
 
         return row
 
