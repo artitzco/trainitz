@@ -6,109 +6,156 @@ import utilitz.regex as rex
 @functools.total_ordering
 class Time:
 
-    def __init__(self, value=None, sgn=1, hours=0, minutes=0, seconds=0, milis=0):
-        if value is None:
-            self._secondstime = sgn * \
-                (hours * 3600 + minutes * 60 + seconds + milis / 1000)
-        elif isinstance(value, (int, float)):
-            self._secondstime = float(value)
+    _FACTORS = {'hours': 3600, 'minutes': 60, 'seconds': 1, 'milis': 0.001}
+
+    def __init__(self, value=0, unit='seconds'):
+        self._unit = unit
+        if isinstance(value, (int, float)):
+            self._magnitude = float(value) * self._FACTORS[self._unit]
         elif isinstance(value, str):
             parsed_time = Time.read(value)
-            self._secondstime = parsed_time._secondstime
+            self._magnitude = parsed_time._magnitude
         elif isinstance(value, Time):
-            self._secondstime = value._secondstime
+            self._magnitude = value._magnitude
         else:
             raise ValueError(f"Invalid time format: {value}")
 
     @property
     def hours(self):
-        return self._secondstime / 3600
+        return self._magnitude / 3600
 
     @property
     def minutes(self):
-        return self._secondstime / 60
+        return self._magnitude / 60
 
     @property
     def seconds(self):
-        return self._secondstime
+        return self._magnitude
 
     @property
     def milis(self):
-        return self._secondstime * 1000
+        return self._magnitude * 1000
 
     @property
     def time(self):
-        seconds_time = abs(self._secondstime)
-        sng = -1 if self._secondstime < 0 else 1
+        seconds_time = abs(self._magnitude)
+        sng = -1 if self._magnitude < 0 else 1
         hours = seconds_time // 3600
         minutes = (seconds_time - hours * 3600) // 60
         seconds = (seconds_time - hours * 3600 - minutes * 60)//1
         milis = (seconds_time - hours * 3600 - minutes * 60 - seconds) * 1000
         return sng, int(hours), int(minutes), int(seconds), milis
 
+    @property
+    def unit(self):
+        return self._unit
+
     # Comparación
 
-    def __eq__(self, other):
+    def _get_magnitude(self, other):
         if isinstance(other, Time):
-            return self._secondstime == other._secondstime
-        return self._secondstime == other
+            return other._magnitude
+        if isinstance(other, (int, float)):
+            return float(other) * self._FACTORS[self._unit]
+        return NotImplemented
+
+    def __eq__(self, other):
+        sec = self._get_magnitude(other)
+        if sec is NotImplemented:
+            return False
+        return self._magnitude == sec
 
     def __lt__(self, other):
-        if isinstance(other, Time):
-            return self._secondstime < other._secondstime
-        return self._secondstime < other
+        sec = self._get_magnitude(other)
+        if sec is NotImplemented:
+            return NotImplemented
+        return self._magnitude < sec
 
     # Operaciones aritméticas
 
+    def __neg__(self):
+        return Time(-self._magnitude / self._FACTORS[self._unit], self._unit)
+
+    def __pos__(self):
+        return self
+
+    def __abs__(self):
+        return Time(abs(self._magnitude) / self._FACTORS[self._unit], self._unit)
+
     def __add__(self, other):
-        if isinstance(other, Time):
-            return Time(seconds=self._secondstime + other._secondstime)
-        return Time(seconds=self._secondstime + other)
+        sec = self._get_magnitude(other)
+        if sec is NotImplemented:
+            return NotImplemented
+        return Time((self._magnitude + sec) / self._FACTORS[self._unit], self._unit)
 
     def __radd__(self, other):
-        return self.__add__(other)
+        sec = self._get_magnitude(other)
+        if sec is NotImplemented:
+            return NotImplemented
+        return Time((sec + self._magnitude) / self._FACTORS[self._unit], self._unit)
 
     def __sub__(self, other):
-        if isinstance(other, Time):
-            return Time(seconds=self._secondstime - other._secondstime)
-        return Time(seconds=self._secondstime - other)
+        sec = self._get_magnitude(other)
+        if sec is NotImplemented:
+            return NotImplemented
+        return Time((self._magnitude - sec) / self._FACTORS[self._unit], self._unit)
 
     def __rsub__(self, other):
-        if isinstance(other, Time):
-            return Time(seconds=other._secondstime - self._secondstime)
-        return Time(seconds=other - self._secondstime)
+        sec = self._get_magnitude(other)
+        if sec is NotImplemented:
+            return NotImplemented
+        return Time((sec - self._magnitude) / self._FACTORS[self._unit], self._unit)
 
     def __mul__(self, other):
-        return Time(seconds=self._secondstime * other)
+        if isinstance(other, (int, float)):
+            return Time((self._magnitude * other) / self._FACTORS[self._unit], self._unit)
+        return NotImplemented
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return Time(seconds=self._secondstime / other)
+        if isinstance(other, (int, float)):
+            return Time((self._magnitude / other) / self._FACTORS[self._unit], self._unit)
+        return NotImplemented
+
+    def __rtruediv__(self, other):
+        return NotImplemented
 
     # Conversión
+
     def __float__(self):
-        return self._secondstime
+        return self._magnitude / self._FACTORS[self._unit]
 
     def __int__(self):
-        return int(self._secondstime)
+        return int(self._magnitude / self._FACTORS[self._unit])
 
     # Representación
 
     def __str__(self):
         sgn, hours, minutes, seconds, milis = self.time
-        sgn = '-' if sgn == -1 else ''
+        sgn_str = '-' if sgn == -1 else ''
+
+        # Consistent millisecond rounding
+        rounded_milis = int(round(milis))
+        if rounded_milis >= 1000:
+            seconds += 1
+            rounded_milis -= 1000
+            if seconds >= 60:
+                seconds -= 60
+                minutes += 1
+                if minutes >= 60:
+                    minutes -= 60
+                    hours += 1
+
+        milis_str = f'.{rounded_milis:03d}' if rounded_milis > 0 else ''
+
         if hours > 0:
-            return f'{sgn}{hours}:{minutes:02d}:{seconds:02d}'
+            return f'{sgn_str}{hours}:{minutes:02d}:{seconds:02d}{milis_str}'
         if minutes > 0:
-            return f'{sgn}{minutes}:{seconds:02d}'
-        if seconds > 0:
-            return f'{sgn}0:{seconds:02d}'
-        fseconds = seconds + milis / 1000
-        if fseconds < 0.001:
-            return f'{sgn}0:00'
-        return f'{sgn}0:{fseconds:.3f}'
+            return f'{sgn_str}{minutes}:{seconds:02d}{milis_str}'
+
+        return f'{sgn_str}0:{seconds:02d}{milis_str}'
 
     def __repr__(self):
         return self.__str__()
@@ -134,90 +181,127 @@ class Time:
             hours = decoded.get('hours') or 0
             minutes = decoded.get('minutes') or 0
             seconds = decoded.get('seconds') or 0
-            return Time(sgn=sgn, hours=hours, minutes=minutes, seconds=seconds)
+            total = sgn * (hours * 3600 + minutes * 60 + seconds)
+            return Time(total, 'seconds')
         raise ValueError(f"Invalid time format: {string}")
 
 
 @functools.total_ordering
 class Distance:
 
-    def __init__(self, value=None, sgn=1, kilometers=0, meters=0):
-        if value is None:
-            self._metersdistance = sgn * \
-                (kilometers * 1000 + meters)
-        elif isinstance(value, (int, float)):
-            self._metersdistance = float(value)
+    _FACTORS = {'kilometers': 1000, 'meters': 1}
+
+    def __init__(self, value=0, unit='meters'):
+        self._unit = unit
+        if isinstance(value, (int, float)):
+            self._magnitude = float(value) * self._FACTORS[self._unit]
         elif isinstance(value, str):
             parsed_distance = Distance.read(value)
-            self._metersdistance = parsed_distance._metersdistance
+            self._magnitude = parsed_distance._magnitude
         elif isinstance(value, Distance):
-            self._metersdistance = value._metersdistance
+            self._magnitude = value._magnitude
         else:
             raise ValueError(f"Invalid distance format: {value}")
 
     @property
     def kilometers(self):
-        return self._metersdistance / 1000
+        return self._magnitude / 1000
 
     @property
     def meters(self):
-        return self._metersdistance
+        return self._magnitude
 
     @property
     def distance(self):
-        meters_distance = abs(self._metersdistance)
-        sgn = -1 if self._metersdistance < 0 else 1
+        meters_distance = abs(self._magnitude)
+        sgn = -1 if self._magnitude < 0 else 1
         kilometers = meters_distance // 1000
         meters = meters_distance - kilometers * 1000
         return sgn, int(kilometers), meters
 
+    @property
+    def unit(self):
+        return self._unit
+
     # Comparación
 
-    def __eq__(self, other):
+    def _get_magnitude(self, other):
         if isinstance(other, Distance):
-            return self._metersdistance == other._metersdistance
-        return self._metersdistance == other
+            return other._magnitude
+        if isinstance(other, (int, float)):
+            return float(other) * self._FACTORS[self._unit]
+        return NotImplemented
+
+    def __eq__(self, other):
+        m = self._get_magnitude(other)
+        if m is NotImplemented:
+            return False
+        return self._magnitude == m
 
     def __lt__(self, other):
-        if isinstance(other, Distance):
-            return self._metersdistance < other._metersdistance
-        return self._metersdistance < other
+        m = self._get_magnitude(other)
+        if m is NotImplemented:
+            return NotImplemented
+        return self._magnitude < m
 
     # Operaciones aritméticas
 
+    def __neg__(self):
+        return Distance(-self._magnitude / self._FACTORS[self._unit], self._unit)
+
+    def __pos__(self):
+        return self
+
+    def __abs__(self):
+        return Distance(abs(self._magnitude) / self._FACTORS[self._unit], self._unit)
+
     def __add__(self, other):
-        if isinstance(other, Distance):
-            return Distance(meters=self._metersdistance + other._metersdistance)
-        return Distance(meters=self._metersdistance + other)
+        m = self._get_magnitude(other)
+        if m is NotImplemented:
+            return NotImplemented
+        return Distance((self._magnitude + m) / self._FACTORS[self._unit], self._unit)
 
     def __radd__(self, other):
-        return self.__add__(other)
+        m = self._get_magnitude(other)
+        if m is NotImplemented:
+            return NotImplemented
+        return Distance((m + self._magnitude) / self._FACTORS[self._unit], self._unit)
 
     def __sub__(self, other):
-        if isinstance(other, Distance):
-            return Distance(meters=self._metersdistance - other._metersdistance)
-        return Distance(meters=self._metersdistance - other)
+        m = self._get_magnitude(other)
+        if m is NotImplemented:
+            return NotImplemented
+        return Distance((self._magnitude - m) / self._FACTORS[self._unit], self._unit)
 
     def __rsub__(self, other):
-        if isinstance(other, Distance):
-            return Distance(meters=other._metersdistance - self._metersdistance)
-        return Distance(meters=other - self._metersdistance)
+        m = self._get_magnitude(other)
+        if m is NotImplemented:
+            return NotImplemented
+        return Distance((m - self._magnitude) / self._FACTORS[self._unit], self._unit)
 
     def __mul__(self, other):
-        return Distance(meters=self._metersdistance * other)
+        if isinstance(other, (int, float)):
+            return Distance((self._magnitude * other) / self._FACTORS[self._unit], self._unit)
+        return NotImplemented
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return Distance(meters=self._metersdistance / other)
+        if isinstance(other, (int, float)):
+            return Distance((self._magnitude / other) / self._FACTORS[self._unit], self._unit)
+        return NotImplemented
+
+    def __rtruediv__(self, other):
+        return NotImplemented
 
     # Conversión
+
     def __float__(self):
-        return self._metersdistance
+        return self._magnitude / self._FACTORS[self._unit]
 
     def __int__(self):
-        return int(self._metersdistance)
+        return int(self._magnitude / self._FACTORS[self._unit])
 
     # Representación
 
@@ -225,11 +309,11 @@ class Distance:
         sgn, km, m = self.distance
         sgn_str = '-' if sgn == -1 else ''
         if km > 0:
-            total_km = abs(self._metersdistance) / 1000
+            total_km = abs(self._magnitude) / 1000
             if total_km.is_integer():
                 return f'{sgn_str}{int(total_km)}km'
             return f'{sgn_str}{total_km:.2f}km'.rstrip('0').rstrip('.')
-        
+
         if m.is_integer():
             return f'{sgn_str}{int(m)}m'
         return f'{sgn_str}{m:.2f}m'.rstrip('0').rstrip('.')
@@ -243,7 +327,8 @@ class Distance:
             sgn = rex.Pattern(regex=r'-', name='sgn')
             val = rex.Number(name='value', signum=False)
             unit = rex.Pattern(regex=r'km|m', name='unit')
-            Distance._regex = r'(?:' + str(sgn) + r')?(?:' + str(val) + r')\s?(?:' + str(unit) + r')'
+            Distance._regex = r'(?:' + str(sgn) + r')?(?:' + \
+                str(val) + r')\s?(?:' + str(unit) + r')'
         return Distance._regex
 
     @staticmethod
@@ -255,7 +340,6 @@ class Distance:
             sgn = -1 if decoded.get('sgn') else 1
             value = decoded.get('value') or 0
             unit = decoded.get('unit') or 'm'
-            if unit == 'km':
-                return Distance(sgn=sgn, kilometers=value)
-            return Distance(sgn=sgn, meters=value)
+            val = sgn * value
+            return Distance(val, 'kilometers' if unit == 'km' else 'meters')
         raise ValueError(f"Invalid distance format: {string}")
