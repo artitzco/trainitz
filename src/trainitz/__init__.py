@@ -9,8 +9,8 @@ class TrainingPlanGenerator:
     """
 
     _UNIT_CONFIG = {
-        'time': {'class': Time, 'unit': 'minutes'},
-        'distance': {'class': Distance, 'unit': 'kilometers'},
+        'time': {'class': Time, 'unit': 'min'},
+        'distance': {'class': Distance, 'unit': 'km'},
     }
 
     def __init__(self, data_list, round_to_half=True, unit='time'):
