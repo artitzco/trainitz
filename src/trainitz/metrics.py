@@ -550,20 +550,19 @@ class Time(Metric):
     def __mul__(self, other):
         if isinstance(other, Velocity):
             return Distance(
-                float(self) * float(other) * other.multiplier /
-                    DISTANCE_UNITS.multiplier(other.unit[0]),
+                float(other) * self.get(other.unit[1]),
                 other.unit[0], other.format[0])
         return super().__mul__(other)
 
     def __truediv__(self, other):
         if isinstance(other, Distance):
             fmt = (self.format, other.format)
-            if fmt not in Pace._ACCEPTED_FORMATS:
-                fmt = Pace._ACCEPTED_FORMATS[0]
-            return Pace(
+            if fmt not in Slowness._ACCEPTED_FORMATS:
+                fmt = Slowness._ACCEPTED_FORMATS[0]
+            return Slowness(
                 float(self) / float(other),
                 (self.unit, other.unit), fmt)
-        if isinstance(other, Pace):
+        if isinstance(other, Slowness):
             return Distance(
                 self.get(other.unit[0]) / float(other),
                 other.unit[1], other.format[1])
@@ -575,10 +574,9 @@ class Distance(Metric):
     _DEFAULT_UNIT = 'm'
 
     def __mul__(self, other):
-        if isinstance(other, Pace):
+        if isinstance(other, Slowness):
             return Time(
-                float(self) * float(other) * other.multiplier /
-                    TIME_UNITS.multiplier(other.unit[0]),
+                float(other) * self.get(other.unit[1]),
                 other.unit[0], other.format[0])
         return super().__mul__(other)
 
@@ -602,39 +600,40 @@ class Velocity(Metric):
     _DEFAULT_UNIT = ('m', 's')
     _ACCEPTED_FORMATS = [
         ('short', 'short'),
+        ('short', 'long'),
         ('long', 'short'),
         ('long', 'long'),
-        # ('short', 'clock'),
-        # ('long', 'clock'),
     ]
+
 
     def __mul__(self, other):
         if isinstance(other, Time):
             return Distance(
                 float(self) * other.get(self.unit[1]),
                 self.unit[0], self.format[0])
+        if isinstance(other, Slowness):
+            return self._magnitude * other._magnitude
         return super().__mul__(other)
 
     def __rtruediv__(self, other):
         if isinstance(other, (int, float)):
             fmt = (self.format[1], self.format[0])
-            if fmt not in Pace._ACCEPTED_FORMATS:
-                fmt = Pace._ACCEPTED_FORMATS[0]
-            return Pace(
+            if fmt not in Slowness._ACCEPTED_FORMATS:
+                fmt = Slowness._ACCEPTED_FORMATS[0]
+            return Slowness(
                 other / float(self),
                 (self.unit[1], self.unit[0]), fmt)
         return NotImplemented
 
 
-class Pace(Metric):
+class Slowness(Metric):
     _UNITS = ((TIME_UNITS, 1), (DISTANCE_UNITS, -1))
-    _DEFAULT_UNIT = ('min', 'km')
+    _DEFAULT_UNIT = ('s', 'm')
     _ACCEPTED_FORMATS = [
-        ('clock', 'short'),
         ('short', 'short'),
+        ('short', 'long'),
         ('long', 'short'),
         ('long', 'long'),
-        ('clock', 'long'),
     ]
 
     def __mul__(self, other):
@@ -642,6 +641,8 @@ class Pace(Metric):
             return Time(
                 float(self) * other.get(self.unit[1]),
                 self.unit[0], self.format[0])
+        if isinstance(other, Velocity):
+            return self._magnitude * other._magnitude
         return super().__mul__(other)
 
     def __rtruediv__(self, other):
